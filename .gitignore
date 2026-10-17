@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Trained artifacts and dataset (regenerate with `python train.py`)
+backend/model.joblib
+backend/data/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Logs & scratch
+*.log
+shot-*.png
+
+# Editors & OS
+.DS_Store
+.idea/
+.vscode/
+Thumbs.db

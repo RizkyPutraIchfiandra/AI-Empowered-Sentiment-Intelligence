@@ -1,0 +1,54 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #0f172a;
+  --color-surface: #1e293b;
+  --color-accent: #3b82f6;
+  --color-accent-strong: #2563eb;
+  --color-paper: #f1f5f9;
+  --color-positive: #22c55e;
+  --color-negative: #f43f5e;
+}
+
+@layer base {
+  body {
+    @apply bg-ink text-paper font-sans antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+  }
+
+  /* Focus ring that stays visible on the dark background. */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
+  }
+}
+
+@layer utilities {
+  /* Blueprint grid behind the hero. Static by default; the slow drift only
+     runs for users who have not asked for reduced motion. */
+  .grid-backdrop {
+    background-image:
+      linear-gradient(to right, rgb(148 163 184 / 0.08) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(148 163 184 / 0.08) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .grid-backdrop {
+      animation: grid-drift 24s linear infinite;
+    }
+  }
+
+  @keyframes grid-drift {
+    to {
+      background-position: 56px 56px;
+    }
+  }
+}
