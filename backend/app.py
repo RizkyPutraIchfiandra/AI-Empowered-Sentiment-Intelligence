@@ -89,8 +89,8 @@ def predict():
 
 
 if __name__ == "__main__":
-    # Hugging Face Spaces routes to 7860 and needs 0.0.0.0 to be reachable;
-    # locally both default back to the old loopback behaviour.
+    # Local runs only. Render starts gunicorn from render.yaml and never
+    # reaches this block, but HOST and PORT stay overridable for parity.
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "5000"))
     loaded = ", ".join(f"{code} ({cfg['name']})" for code, cfg in LANGUAGES.items())
