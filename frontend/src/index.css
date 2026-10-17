@@ -1,54 +1,115 @@
 @import 'tailwindcss';
 
 @theme {
-  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Baloo 2', ui-rounded, system-ui, sans-serif;
+  --font-sans: 'Figtree', ui-sans-serif, system-ui, sans-serif;
 
-  --color-ink: #0f172a;
-  --color-surface: #1e293b;
-  --color-accent: #3b82f6;
-  --color-accent-strong: #2563eb;
-  --color-paper: #f1f5f9;
-  --color-positive: #22c55e;
-  --color-negative: #f43f5e;
+  /* Risograph inks on lilac paper. Bright values are fills; the `-ink`
+     variants are the same hue darkened enough to pass contrast as text. */
+  --color-paper: #f4f1ff;
+  --color-card: #ffffff;
+  --color-ink: #211b3a;
+  --color-ink-soft: #574e7d;
+  --color-pink: #ff5c8a;
+  --color-pink-ink: #c2185b;
+  --color-pink-soft: #ffe0e9;
+  --color-teal: #3fd3b3;
+  --color-teal-ink: #0a7a66;
+  --color-teal-soft: #d6f7ef;
+  --color-sun: #ffc94a;
+  --color-lilac: #c9bdff;
+  --color-lilac-soft: #ece7ff;
 }
 
 @layer base {
   body {
-    @apply bg-ink text-paper font-sans antialiased;
+    @apply bg-paper text-ink font-sans antialiased;
   }
 
   h1,
-  h2,
-  h3 {
+  h2 {
     @apply font-display;
   }
 
-  /* Focus ring that stays visible on the dark background. */
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-accent;
+    @apply outline-3 outline-offset-3 outline-ink rounded-sm;
   }
 }
 
 @layer utilities {
-  /* Blueprint grid behind the hero. Static by default; the slow drift only
-     runs for users who have not asked for reduced motion. */
-  .grid-backdrop {
-    background-image:
-      linear-gradient(to right, rgb(148 163 184 / 0.08) 1px, transparent 1px),
-      linear-gradient(to bottom, rgb(148 163 184 / 0.08) 1px, transparent 1px);
-    background-size: 56px 56px;
+  /* Hard offset shadow, no blur: the print-sticker look the whole page hangs
+     on. Blur here would collapse it into the usual soft-card treatment. */
+  .sticker {
+    border: 3px solid var(--color-ink);
+    box-shadow: 5px 5px 0 var(--color-ink);
+  }
+
+  .sticker-sm {
+    border: 2px solid var(--color-ink);
+    box-shadow: 3px 3px 0 var(--color-ink);
+  }
+
+  /* Pressed state for buttons: travel into the shadow instead of scaling, so
+     nothing around it shifts. */
+  .sticker-press {
+    transition:
+      transform 120ms ease-out,
+      box-shadow 120ms ease-out;
+  }
+
+  .sticker-press:active:not(:disabled) {
+    transform: translate(3px, 3px);
+    box-shadow: 1px 1px 0 var(--color-ink);
+  }
+
+  /* Dotted riso paper texture. */
+  .dots {
+    background-image: radial-gradient(var(--color-lilac) 1.5px, transparent 1.5px);
+    background-size: 22px 22px;
   }
 
   @media (prefers-reduced-motion: no-preference) {
-    .grid-backdrop {
-      animation: grid-drift 24s linear infinite;
+    /* The one orchestrated moment: the face reacts when a verdict lands. */
+    .pop {
+      animation: pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .bob {
+      animation: bob 4s ease-in-out infinite;
+    }
+
+    .blink {
+      animation: blink 2.6s steps(1, end) infinite;
+      transform-origin: center;
     }
   }
 
-  @keyframes grid-drift {
-    to {
-      background-position: 56px 56px;
+  @keyframes pop {
+    0% {
+      transform: scale(0.8) rotate(-7deg);
+    }
+    60% {
+      transform: scale(1.04) rotate(2deg);
+    }
+    100% {
+      transform: scale(1) rotate(0deg);
+    }
+  }
+
+  @keyframes bob {
+    50% {
+      transform: translateY(-7px);
+    }
+  }
+
+  @keyframes blink {
+    0%,
+    92% {
+      opacity: 1;
+    }
+    94%,
+    98% {
+      opacity: 0;
     }
   }
 }

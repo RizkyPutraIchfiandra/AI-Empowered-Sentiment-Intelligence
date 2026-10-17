@@ -7,44 +7,113 @@ const MAX_CHARS = 2000;
 const UNCERTAIN_BELOW = 65;
 
 const SAMPLES = [
-  { label: 'EN positive', text: 'The build quality is outstanding and it arrived two days early.' },
-  { label: 'EN negative', text: 'Waited an hour for cold food and nobody apologised.' },
-  { label: 'ID positive', text: 'Makanan nya enak banget, pelayanan ramah, pasti balik lagi.' },
-  { label: 'ID negative', text: 'Tempat nya kotor, pelayan nya galak, nggak akan balik lagi.' },
+  { label: 'Nice review', text: 'The build quality is outstanding and it arrived two days early.' },
+  { label: 'Bad dinner', text: 'Waited an hour for cold food and nobody apologised.' },
+  { label: 'Makanan enak', text: 'Makanan nya enak banget, pelayanan ramah, pasti balik lagi.' },
+  { label: 'Kecewa', text: 'Tempat nya kotor, pelayan nya galak, nggak akan balik lagi.' },
 ];
 
-function Icon({ path, className = 'h-5 w-5' }) {
+/* The face is the whole design. It is the hero before you submit anything and
+   the verdict afterwards, so there is one thing to look at rather than a stat
+   card that lights up somewhere else on the page. */
+const MOODS = {
+  idle: {
+    fill: 'var(--color-lilac-soft)',
+    mouth: 'M42 70 Q60 80 78 70',
+    caption: 'Waiting for something to read',
+  },
+  thinking: {
+    fill: 'var(--color-lilac-soft)',
+    mouth: 'M52 74 Q60 70 68 74',
+    caption: 'Reading it now',
+  },
+  positive: {
+    fill: 'var(--color-teal-soft)',
+    mouth: 'M36 66 Q60 92 84 66 Z',
+    caption: 'This one reads happy',
+  },
+  negative: {
+    fill: 'var(--color-pink-soft)',
+    mouth: 'M38 84 Q60 60 82 84',
+    caption: 'This one reads upset',
+  },
+  uncertain: {
+    fill: '#fff1cf',
+    mouth: 'M38 76 q11 -9 22 0 t22 0',
+    caption: 'Could go either way',
+  },
+};
+
+function Face({ mood, animateKey }) {
+  const m = MOODS[mood];
+  const happy = mood === 'positive';
+  const thinking = mood === 'thinking';
+
   return (
     <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
+      key={animateKey}
+      viewBox="0 0 120 120"
+      className={`h-40 w-40 sm:h-52 sm:w-52 ${mood === 'idle' ? 'bob' : 'pop'}`}
+      role="img"
+      aria-label={m.caption}
     >
-      {path}
+      <circle cx="60" cy="60" r="54" fill={m.fill} stroke="var(--color-ink)" strokeWidth="4" />
+
+      {happy && (
+        <>
+          <circle cx="32" cy="70" r="7" fill="var(--color-pink)" opacity="0.55" />
+          <circle cx="88" cy="70" r="7" fill="var(--color-pink)" opacity="0.55" />
+        </>
+      )}
+
+      <g className={mood === 'idle' ? 'blink' : undefined} fill="var(--color-ink)">
+        {happy ? (
+          <>
+            <path d="M34 50 q10 -11 20 0" fill="none" stroke="var(--color-ink)" strokeWidth="4.5" strokeLinecap="round" />
+            <path d="M66 50 q10 -11 20 0" fill="none" stroke="var(--color-ink)" strokeWidth="4.5" strokeLinecap="round" />
+          </>
+        ) : (
+          <>
+            <circle cx="44" cy="50" r="6" />
+            <circle cx="76" cy="50" r="6" />
+          </>
+        )}
+      </g>
+
+      {mood === 'uncertain' && (
+        <path
+          d="M36 38 q9 -5 18 -1"
+          fill="none"
+          stroke="var(--color-ink)"
+          strokeWidth="4"
+          strokeLinecap="round"
+        />
+      )}
+
+      <path
+        d={m.mouth}
+        fill={happy ? 'var(--color-ink)' : 'none'}
+        stroke="var(--color-ink)"
+        strokeWidth="5"
+        strokeLinecap="round"
+      />
+
+      {thinking && (
+        <g fill="var(--color-ink)">
+          <circle cx="94" cy="26" r="4" />
+          <circle cx="104" cy="18" r="2.5" />
+        </g>
+      )}
     </svg>
   );
 }
-
-const icons = {
-  spark: <path d="M12 3v4m0 10v4M3 12h4m10 0h4M5.6 5.6l2.8 2.8m7.2 7.2 2.8 2.8m0-12.8-2.8 2.8m-7.2 7.2-2.8 2.8" />,
-  up: <path d="M3 17l6-6 4 4 8-8M21 7v6h-6" />,
-  down: <path d="M3 7l6 6 4-4 8 8M21 17v-6h-6" />,
-  reset: <path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" />,
-  warn: <path d="M12 9v4m0 4h.01M10.3 3.9 2.4 17.5A1.9 1.9 0 0 0 4 20.4h16a1.9 1.9 0 0 0 1.6-2.9L13.7 3.9a1.9 1.9 0 0 0-3.4 0Z" />,
-  flat: <path d="M4 12h16M7 9l-3 3 3 3m10-6 3 3-3 3" />,
-  globe: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0 0c2.5-2.3 3.8-5.3 3.8-9S14.5 5.3 12 3m0 18c-2.5-2.3-3.8-5.3-3.8-9S9.5 5.3 12 3M3.5 9h17m-17 6h17" />,
-};
 
 export default function App() {
   const [text, setText] = useState('');
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [runs, setRuns] = useState(0);
   const inputRef = useRef(null);
 
   const tooLong = text.length > MAX_CHARS;
@@ -75,6 +144,7 @@ export default function App() {
       );
     } finally {
       setLoading(false);
+      setRuns((n) => n + 1);
     }
   }
 
@@ -88,192 +158,189 @@ export default function App() {
   const positive = result?.sentiment === 'positive';
   const uncertain = result != null && result.confidence < UNCERTAIN_BELOW;
 
-  // Uncertain results get their own neutral treatment: showing a confident
-  // colour behind a 54% score reads as a verdict the model has not earned.
-  const tone = uncertain
-    ? { color: 'var(--color-slate-300)', tint: 'rgb(148 163 184 / 0.15)', icon: icons.flat }
+  const mood = loading
+    ? 'thinking'
+    : !result
+      ? 'idle'
+      : uncertain
+        ? 'uncertain'
+        : positive
+          ? 'positive'
+          : 'negative';
+
+  const verdict = uncertain ? 'Not sure' : positive ? 'Happy' : 'Upset';
+  const verdictColor = uncertain
+    ? 'var(--color-ink)'
     : positive
-      ? { color: 'var(--color-positive)', tint: 'rgb(34 197 94 / 0.15)', icon: icons.up }
-      : { color: 'var(--color-negative)', tint: 'rgb(244 63 94 / 0.15)', icon: icons.down };
+      ? 'var(--color-teal-ink)'
+      : 'var(--color-pink-ink)';
+
+  // Ten chunky segments rather than a smooth bar: 5 out of 10 looks like a
+  // coin flip, where a half-filled gradient still looks like a measurement.
+  const filled = result ? Math.round(result.confidence / 10) : 0;
 
   return (
-    <div className="relative min-h-dvh overflow-hidden">
-      <div className="grid-backdrop pointer-events-none absolute inset-0" aria-hidden="true" />
-      <div
-        className="pointer-events-none absolute -top-40 -left-32 h-96 w-96 rounded-full bg-accent/20 blur-3xl"
-        aria-hidden="true"
-      />
-
-      <main className="relative mx-auto flex max-w-3xl flex-col gap-12 px-6 py-16 sm:py-24">
-        <header className="flex flex-col gap-5">
-          <span className="inline-flex w-fit items-center gap-2 border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-semibold tracking-[0.18em] text-accent uppercase">
-            <Icon path={icons.spark} className="h-4 w-4" />
-            Sentiment Intelligence
+    <div className="dots min-h-dvh">
+      <main className="mx-auto flex max-w-5xl flex-col gap-10 px-5 py-12 sm:px-8 sm:py-16">
+        <header className="flex flex-col items-center gap-3 text-center">
+          <span className="sticker-sm -rotate-2 bg-sun px-3 py-1 text-sm font-bold">
+            English & Indonesian
           </span>
-
-          <h1 className="text-4xl leading-[1.05] font-bold tracking-tight sm:text-6xl">
-            Read the tone
-            <br />
-            <span className="text-accent">before you reply.</span>
-          </h1>
-
-          <p className="max-w-xl text-lg leading-relaxed text-slate-400">
-            Paste a review or message in English or Indonesian. The language is detected, then a
-            TF-IDF and logistic regression model scores it as positive or negative and shows how
-            certain it is.
+          <h1 className="text-5xl font-extrabold tracking-tight sm:text-6xl">Moodreader</h1>
+          <p className="max-w-md text-lg leading-relaxed text-ink-soft">
+            Paste a message or review. The face tells you how it lands, and how sure it is about
+            that.
           </p>
         </header>
 
-        <form onSubmit={analyse} className="flex flex-col gap-4">
-          <label htmlFor="review" className="text-sm font-semibold tracking-wide text-slate-300">
-            Text to analyse
-          </label>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+          <form onSubmit={analyse} className="sticker flex flex-col gap-4 rounded-3xl bg-card p-5 sm:p-7">
+            <label htmlFor="review" className="text-lg font-bold">
+              What did they say?
+            </label>
 
-          <textarea
-            id="review"
-            ref={inputRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={5}
-            placeholder="e.g. The screen is gorgeous but the battery dies by lunchtime."
-            aria-describedby="counter"
-            aria-invalid={tooLong}
-            className="w-full resize-y border border-slate-700 bg-surface/70 px-4 py-3.5 text-base leading-relaxed text-paper transition-colors duration-200 placeholder:text-slate-500 hover:border-slate-600 focus:border-accent focus:outline-none"
-          />
+            <textarea
+              id="review"
+              ref={inputRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={6}
+              placeholder="The screen is gorgeous but the battery dies by lunchtime."
+              aria-describedby="counter"
+              aria-invalid={tooLong}
+              className="w-full resize-y rounded-2xl border-3 border-ink bg-paper px-4 py-3 text-base leading-relaxed placeholder:text-ink-soft/60 focus:bg-lilac-soft focus:outline-none"
+            />
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p
-              id="counter"
-              className={`text-sm ${tooLong ? 'font-semibold text-negative' : 'text-slate-500'}`}
-            >
-              {text.length.toLocaleString()} / {MAX_CHARS.toLocaleString()} characters
-            </p>
-
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={reset}
-                disabled={!text && !result}
-                className="inline-flex min-h-11 cursor-pointer items-center gap-2 border border-slate-700 px-4 text-sm font-semibold text-slate-300 transition-colors duration-200 hover:border-slate-500 hover:text-paper disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Icon path={icons.reset} className="h-4 w-4" />
-                Clear
-              </button>
-
-              <button
-                type="submit"
-                disabled={!canSubmit}
-                className="inline-flex min-h-11 cursor-pointer items-center gap-2 bg-accent px-6 text-sm font-bold text-white transition-colors duration-200 hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-              >
-                {loading ? 'Analysing…' : 'Analyse'}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <span className="text-xs tracking-wide text-slate-500 uppercase">Try</span>
-            {SAMPLES.map((sample) => (
-              <button
-                key={sample.label}
-                type="button"
-                onClick={() => setText(sample.text)}
-                className="cursor-pointer border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors duration-200 hover:border-accent hover:text-accent"
-              >
-                {sample.label}
-              </button>
-            ))}
-          </div>
-        </form>
-
-        <section aria-live="polite" aria-atomic="true" className="min-h-32">
-          {loading && (
-            <div className="border border-slate-700 bg-surface/50 p-6">
-              <div className="h-4 w-32 animate-pulse bg-slate-700" />
-              <div className="mt-4 h-10 w-48 animate-pulse bg-slate-700" />
-              <div className="mt-6 h-3 w-full animate-pulse bg-slate-700" />
-            </div>
-          )}
-
-          {error && !loading && (
-            <div className="flex items-start gap-3 border border-negative/40 bg-negative/10 p-5 text-negative">
-              <Icon path={icons.warn} className="mt-0.5 h-5 w-5 shrink-0" />
-              <p className="text-sm leading-relaxed">{error}</p>
-            </div>
-          )}
-
-          {result && !loading && (
-            <div className="border border-slate-700 bg-surface/60 p-6 sm:p-8">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs font-semibold tracking-[0.18em] text-slate-400 uppercase">
-                  Result
-                </p>
-
-                <span className="inline-flex items-center gap-1.5 border border-slate-700 px-2.5 py-1 text-xs text-slate-400">
-                  <Icon path={icons.globe} className="h-3.5 w-3.5" />
-                  {result.languageName}
-                  {result.detected && <span className="text-slate-500">· detected</span>}
-                </span>
-              </div>
-
-              <div className="mt-3 flex items-center gap-3">
-                <span
-                  className="flex h-12 w-12 shrink-0 items-center justify-center"
-                  style={{ backgroundColor: tone.tint, color: tone.color }}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold text-ink-soft">Or try one</span>
+              {SAMPLES.map((sample) => (
+                <button
+                  key={sample.label}
+                  type="button"
+                  onClick={() => setText(sample.text)}
+                  className="sticker-sm sticker-press cursor-pointer rounded-full bg-lilac-soft px-3 py-1.5 text-sm font-semibold transition-colors duration-200 hover:bg-lilac"
                 >
-                  <Icon path={tone.icon} className="h-6 w-6" />
+                  {sample.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t-3 border-dashed border-lilac pt-4">
+              <p
+                id="counter"
+                className={`text-sm font-semibold ${tooLong ? 'text-pink-ink' : 'text-ink-soft'}`}
+              >
+                {text.length.toLocaleString()} / {MAX_CHARS.toLocaleString()}
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={reset}
+                  disabled={!text && !result}
+                  className="sticker-sm sticker-press min-h-11 cursor-pointer rounded-full bg-card px-5 font-bold transition-colors duration-200 hover:bg-lilac-soft disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Clear
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={!canSubmit}
+                  className="sticker sticker-press min-h-11 cursor-pointer rounded-full bg-pink px-7 font-display text-lg font-bold text-white transition-colors duration-200 hover:bg-pink-ink disabled:cursor-not-allowed disabled:bg-lilac disabled:text-ink-soft"
+                >
+                  {loading ? 'Reading…' : 'Read it'}
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <section
+            aria-live="polite"
+            className="sticker flex flex-col items-center gap-4 rounded-3xl bg-card p-6 text-center"
+          >
+            {/* An error takes the face's place rather than stacking under it, so
+                it cannot land below the fold on a narrow screen. */}
+            {error ? (
+              <div className="sticker-sm w-full rounded-2xl bg-pink-soft p-5 text-left">
+                <p className="font-display text-xl font-bold text-pink-ink">That did not work</p>
+                <p className="mt-1 leading-relaxed text-ink">{error}</p>
+              </div>
+            ) : (
+              <Face mood={mood} animateKey={runs} />
+            )}
+
+            {!result && !error && (
+              <p className="text-base font-semibold text-ink-soft">{MOODS[mood].caption}</p>
+            )}
+
+            {result && !loading && (
+              <>
+                <h2 className="text-4xl font-extrabold" style={{ color: verdictColor }}>
+                  {verdict}
+                </h2>
+
+                <span className="sticker-sm rounded-full bg-lilac-soft px-3 py-1 text-sm font-semibold">
+                  {result.languageName}
+                  {result.detected ? ', spotted on its own' : ', you picked it'}
                 </span>
 
-                <h2 className="text-3xl font-bold capitalize sm:text-4xl" style={{ color: tone.color }}>
-                  {uncertain ? 'Uncertain' : result.sentiment}
-                </h2>
-              </div>
+                {uncertain && (
+                  <p className="text-sm leading-relaxed text-ink-soft">
+                    It leans {result.sentiment} at {result.confidence}%, which is nearly a coin
+                    flip. Both models learned from reviews, so chit-chat is new ground for them.
+                  </p>
+                )}
 
-              {uncertain && (
-                <p className="mt-3 text-sm leading-relaxed text-slate-400">
-                  Leaning {result.sentiment} at {result.confidence}%, which is close to a coin flip.
-                  The models are trained on reviews, so casual conversation sits outside what they
-                  have seen.
-                </p>
-              )}
-
-              <div className="mt-7">
-                <div className="flex items-baseline justify-between text-sm">
-                  <span className="text-slate-400">Confidence</span>
-                  <span className="font-display text-lg font-semibold">{result.confidence}%</span>
-                </div>
-
-                <div className="mt-2 h-2.5 w-full overflow-hidden bg-slate-700">
-                  <div
-                    className="h-full transition-[width] duration-300 ease-out motion-reduce:transition-none"
-                    style={{
-                      width: `${result.confidence}%`,
-                      backgroundColor: positive
-                        ? 'var(--color-positive)'
-                        : 'var(--color-negative)',
-                    }}
-                  />
-                </div>
-              </div>
-
-              <dl className="mt-7 grid grid-cols-2 gap-px border border-slate-700 bg-slate-700">
-                {[
-                  ['Positive', result.scores.positive],
-                  ['Negative', result.scores.negative],
-                ].map(([label, value]) => (
-                  <div key={label} className="bg-surface p-4">
-                    <dt className="text-xs tracking-wide text-slate-400 uppercase">{label}</dt>
-                    <dd className="font-display mt-1 text-xl font-semibold">{value}%</dd>
+                <div className="w-full">
+                  <div className="flex items-baseline justify-between">
+                    <span className="font-semibold text-ink-soft">How sure</span>
+                    <span className="font-display text-2xl font-bold">{result.confidence}%</span>
                   </div>
-                ))}
-              </dl>
-            </div>
-          )}
-        </section>
 
-        <footer className="border-t border-slate-800 pt-6 text-sm text-slate-500">
-          Two models: English on 3,000 Amazon, IMDb, and Yelp sentences (~85% held-out accuracy),
-          Indonesian on 11,000 (~91%). Both are review-trained, so treat low-confidence calls as
-          uncertain.
+                  <div className="mt-2 flex gap-1" aria-hidden="true">
+                    {Array.from({ length: 10 }, (_, i) => (
+                      <span
+                        key={i}
+                        className="h-6 flex-1 rounded-md border-2 border-ink"
+                        style={{
+                          backgroundColor:
+                            i < filled
+                              ? uncertain
+                                ? 'var(--color-sun)'
+                                : positive
+                                  ? 'var(--color-teal)'
+                                  : 'var(--color-pink)'
+                              : 'var(--color-paper)',
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <dl className="grid w-full grid-cols-2 gap-3">
+                  {[
+                    ['Happy', result.scores.positive, 'var(--color-teal-soft)'],
+                    ['Upset', result.scores.negative, 'var(--color-pink-soft)'],
+                  ].map(([label, value, bg]) => (
+                    <div
+                      key={label}
+                      className="sticker-sm rounded-2xl p-3"
+                      style={{ backgroundColor: bg }}
+                    >
+                      <dt className="text-sm font-semibold text-ink-soft">{label}</dt>
+                      <dd className="font-display text-2xl font-bold">{value}%</dd>
+                    </div>
+                  ))}
+                </dl>
+              </>
+            )}
+          </section>
+        </div>
+
+        <footer className="mx-auto max-w-xl text-center text-sm leading-relaxed text-ink-soft">
+          Two models behind this: English learned from 3,000 Amazon, IMDb, and Yelp sentences and
+          gets 85% right, Indonesian learned from 11,000 and gets 91%. Both read reviews for a
+          living, so treat a low score as a shrug.
         </footer>
       </main>
     </div>

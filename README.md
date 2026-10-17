@@ -1,8 +1,8 @@
 <div align="center">
 
-# Sentiment Intelligence
+# Moodreader
 
-**Read the tone before you reply.**
+**Read the mood before you reply.**
 
 Paste a review or message in English or Indonesian. The language is detected, then a TF-IDF and logistic regression model scores it as positive or negative and shows how certain it is.
 
@@ -14,7 +14,7 @@ Paste a review or message in English or Indonesian. The language is detected, th
 ![Tailwind](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-3B82F6)
 
-<img src="docs/assets/screenshot.png" alt="Sentiment Intelligence analysing a product review" width="100%" />
+<img src="docs/assets/screenshot.png" alt="Moodreader reading a product review as happy, with 67.7% confidence" width="100%" />
 
 </div>
 
