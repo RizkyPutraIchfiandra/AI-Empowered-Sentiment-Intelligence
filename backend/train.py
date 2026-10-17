@@ -1,28 +1,36 @@
-"""Trains one sentiment classifier per language and saves them next to this file.
+"""Trains one sentiment classifier per language.
 
-Run once before app.py:  python train.py
+Writes two artifacts per language: a .joblib for the local Flask API, and a
+.json of the fitted weights that the deployed frontend scores in the browser.
+
+Run once:  python train.py
 
 English  : UCI Sentiment Labelled Sentences (Amazon, IMDb, Yelp)
 Indonesian: SmSA from IndoNLU (Prosa.ai document sentiment)
 """
 
 import io
+import json
 import pathlib
 import sys
 import urllib.request
 import zipfile
 
 import pandas as pd
+import lang
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import FeatureUnion, Pipeline
+from sklearn.pipeline import Pipeline
 
 import joblib
 
 HERE = pathlib.Path(__file__).parent
 DATA_DIR = HERE / "data"
+WEB_DIR = HERE.parent / "frontend" / "public" / "models"
+PARITY_PATH = HERE.parent / "frontend" / "src" / "parity.json"
+MARKERS_PATH = HERE.parent / "frontend" / "src" / "markers.json"
 
 EN_URL = "https://archive.ics.uci.edu/static/public/331/sentiment+labelled+sentences.zip"
 EN_MEMBERS = ["amazon_cells_labelled.txt", "imdb_labelled.txt", "yelp_labelled.txt"]
@@ -89,20 +97,41 @@ def build_pipeline() -> Pipeline:
         [
             # No stop word list on purpose: "not"/"tidak" and "very"/"banget"
             # carry the sentiment, and dropping them costs real accuracy.
-            # Char n-grams on top of words catch typos and intensifiers
-            # ("terrrible", "baguuus") that word features alone miss.
-            (
-                "tfidf",
-                FeatureUnion(
-                    [
-                        ("word", TfidfVectorizer(ngram_range=(1, 2), min_df=1, sublinear_tf=True)),
-                        ("char", TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=2, sublinear_tf=True)),
-                    ]
-                ),
-            ),
+            #
+            # Words only, no char n-grams. Char features are worth 1.3 points on
+            # English and nothing on Indonesian, but they triple the exported
+            # vocabulary, and the browser is where this model actually runs.
+            ("tfidf", TfidfVectorizer(ngram_range=(1, 2), min_df=1, sublinear_tf=True)),
             ("clf", LogisticRegression(C=10.0, max_iter=3000, class_weight="balanced")),
         ]
     )
+
+
+def export_json(name: str, model: Pipeline) -> pathlib.Path:
+    """Write the fitted weights for predict.js to score in the browser.
+
+    Everything the prediction needs is linear: the vocabulary, the idf vector,
+    the coefficients, and the intercept. Rounding to 4 decimals costs nothing
+    measurable and shrinks the file by about a third.
+    """
+    tfidf = model.named_steps["tfidf"]
+    clf = model.named_steps["clf"]
+
+    WEB_DIR.mkdir(parents=True, exist_ok=True)
+    path = WEB_DIR / f"model_{name}.json"
+    path.write_text(
+        json.dumps(
+            {
+                "vocab": {term: int(i) for term, i in tfidf.vocabulary_.items()},
+                "idf": [round(float(x), 4) for x in tfidf.idf_],
+                "coef": [round(float(x), 4) for x in clf.coef_[0]],
+                "intercept": round(float(clf.intercept_[0]), 6),
+            },
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+    return path
 
 
 def train(name: str, df: pd.DataFrame, positive_case: str, negative_case: str) -> float:
@@ -130,6 +159,22 @@ def train(name: str, df: pd.DataFrame, positive_case: str, negative_case: str) -
     assert reloaded.predict([positive_case])[0] == 1, f"{name}: positive case misclassified"
     assert reloaded.predict([negative_case])[0] == 0, f"{name}: negative case misclassified"
     print("self-check passed")
+
+    exported = export_json(name, model)
+    size_mb = exported.stat().st_size / 1024 / 1024
+    print(f"saved {exported.parent.name}/{exported.name} ({size_mb:.2f} MB)")
+
+    # Record what scikit-learn predicts for these cases so predict.check.mjs can
+    # assert the browser implementation agrees. Without this the JS tokenizer can
+    # drift from the vectorizer and nothing would notice.
+    PARITY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    parity = json.loads(PARITY_PATH.read_text(encoding="utf-8")) if PARITY_PATH.exists() else {}
+    parity[name] = [
+        {"text": t, "positive": round(float(model.predict_proba([t])[0][1]), 6)}
+        for t in (positive_case, negative_case)
+    ]
+    PARITY_PATH.write_text(json.dumps(parity, indent=2) + "\n", encoding="utf-8")
+
     return acc
 
 
@@ -146,6 +191,15 @@ def main() -> None:
         "makanan nya enak banget, pelayanan ramah, pasti balik lagi",
         "pelayanan nya lambat, makanan dingin, kecewa banget",
     )
+
+    # The marker lists live in lang.py. Exporting them keeps the browser and the
+    # API detecting the same way instead of two lists drifting apart.
+    MARKERS_PATH.write_text(
+        json.dumps({"id": sorted(lang.ID_MARKERS), "en": sorted(lang.EN_MARKERS)}, indent=0),
+        encoding="utf-8",
+    )
+    print(f"saved {MARKERS_PATH.name}")
+
     print(f"\nBoth models saved in {HERE}")
 
 

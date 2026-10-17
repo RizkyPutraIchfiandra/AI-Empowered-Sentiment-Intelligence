@@ -1,0 +1,22 @@
+{
+  "en": [
+    {
+      "text": "this is wonderful, i love it",
+      "positive": 0.984256
+    },
+    {
+      "text": "terrible, broke after one day",
+      "positive": 0.107522
+    }
+  ],
+  "id": [
+    {
+      "text": "makanan nya enak banget, pelayanan ramah, pasti balik lagi",
+      "positive": 0.996619
+    },
+    {
+      "text": "pelayanan nya lambat, makanan dingin, kecewa banget",
+      "positive": 0.307449
+    }
+  ]
+}

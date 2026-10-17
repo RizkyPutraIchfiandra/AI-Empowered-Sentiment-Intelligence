@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "check": "node src/predict.check.mjs",
+    "build": "node src/predict.check.mjs && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

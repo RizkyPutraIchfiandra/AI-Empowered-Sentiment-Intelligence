@@ -1,7 +1,35 @@
 import { useRef, useState } from 'react';
+import { detect } from './lang.js';
+import { predict } from './predict.js';
 
-const API = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:5000';
 const MAX_CHARS = 2000;
+const LANGUAGE_NAMES = { en: 'English', id: 'Indonesian' };
+
+const round2 = (n) => Math.round(n * 100) / 100;
+
+/* Each model is a few hundred KB to 4 MB of weights, so they are fetched on
+   first use and kept for the rest of the session. Writing English only ever
+   downloads the English one. */
+const cache = new Map();
+
+async function loadModel(language) {
+  if (!cache.has(language)) {
+    cache.set(
+      language,
+      fetch(`${import.meta.env.BASE_URL}models/model_${language}.json`)
+        .then((res) => {
+          if (!res.ok) throw new Error(`Could not load the ${LANGUAGE_NAMES[language]} model.`);
+          return res.json();
+        })
+        // A failed fetch must not be cached, or a retry would replay the error.
+        .catch((err) => {
+          cache.delete(language);
+          throw err;
+        })
+    );
+  }
+  return cache.get(language);
+}
 
 // Confidence below this is reported as uncertain rather than as a verdict.
 const UNCERTAIN_BELOW = 65;
@@ -128,20 +156,29 @@ export default function App() {
     setResult(null);
 
     try {
-      const res = await fetch(`${API}/predict`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+      const language = detect(text);
+      if (language === 'unknown') {
+        throw new Error(
+          'I could not tell which language this is. I only know English and Indonesian.'
+        );
+      }
+
+      const model = await loadModel(language);
+      const { positive: p, matched } = predict(text.trim(), model);
+      if (matched === 0) {
+        throw new Error('None of these words are in my vocabulary, so I have nothing to go on.');
+      }
+
+      setResult({
+        sentiment: p >= 0.5 ? 'positive' : 'negative',
+        confidence: round2(Math.max(p, 1 - p) * 100),
+        scores: { positive: round2(p * 100), negative: round2((1 - p) * 100) },
+        language,
+        languageName: LANGUAGE_NAMES[language],
+        detected: true,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
-      setResult(data);
     } catch (err) {
-      setError(
-        err.message === 'Failed to fetch'
-          ? `Cannot reach the API at ${API}. Is the Flask server running?`
-          : err.message
-      );
+      setError(err.message);
     } finally {
       setLoading(false);
       setRuns((n) => n + 1);
@@ -339,7 +376,7 @@ export default function App() {
 
         <footer className="mx-auto max-w-xl text-center text-sm leading-relaxed text-ink-soft">
           Two models behind this: English learned from 3,000 Amazon, IMDb, and Yelp sentences and
-          gets 85% right, Indonesian learned from 11,000 and gets 91%. Both read reviews for a
+          gets 83% right, Indonesian learned from 11,000 and gets 91%. Both read reviews for a
           living, so treat a low score as a shrug.
         </footer>
       </main>
