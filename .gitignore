@@ -12,7 +12,7 @@ __pycache__/
 venv/
 
 # Trained artifacts and dataset (regenerate with `python train.py`)
-backend/model.joblib
+backend/*.joblib
 backend/data/
 
 # Env & secrets

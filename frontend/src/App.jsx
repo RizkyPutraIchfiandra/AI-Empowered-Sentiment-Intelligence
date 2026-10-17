@@ -3,10 +3,14 @@ import { useRef, useState } from 'react';
 const API = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:5000';
 const MAX_CHARS = 2000;
 
+// Confidence below this is reported as uncertain rather than as a verdict.
+const UNCERTAIN_BELOW = 65;
+
 const SAMPLES = [
-  'The build quality is outstanding and it arrived two days early.',
-  'Waited an hour for cold food and nobody apologised.',
-  'Not the worst I have tried, but I would not buy it again.',
+  { label: 'EN positive', text: 'The build quality is outstanding and it arrived two days early.' },
+  { label: 'EN negative', text: 'Waited an hour for cold food and nobody apologised.' },
+  { label: 'ID positive', text: 'Makanan nya enak banget, pelayanan ramah, pasti balik lagi.' },
+  { label: 'ID negative', text: 'Tempat nya kotor, pelayan nya galak, nggak akan balik lagi.' },
 ];
 
 function Icon({ path, className = 'h-5 w-5' }) {
@@ -32,6 +36,8 @@ const icons = {
   down: <path d="M3 7l6 6 4-4 8 8M21 17v-6h-6" />,
   reset: <path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" />,
   warn: <path d="M12 9v4m0 4h.01M10.3 3.9 2.4 17.5A1.9 1.9 0 0 0 4 20.4h16a1.9 1.9 0 0 0 1.6-2.9L13.7 3.9a1.9 1.9 0 0 0-3.4 0Z" />,
+  flat: <path d="M4 12h16M7 9l-3 3 3 3m10-6 3 3-3 3" />,
+  globe: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0 0c2.5-2.3 3.8-5.3 3.8-9S14.5 5.3 12 3m0 18c-2.5-2.3-3.8-5.3-3.8-9S9.5 5.3 12 3M3.5 9h17m-17 6h17" />,
 };
 
 export default function App() {
@@ -80,6 +86,15 @@ export default function App() {
   }
 
   const positive = result?.sentiment === 'positive';
+  const uncertain = result != null && result.confidence < UNCERTAIN_BELOW;
+
+  // Uncertain results get their own neutral treatment: showing a confident
+  // colour behind a 54% score reads as a verdict the model has not earned.
+  const tone = uncertain
+    ? { color: 'var(--color-slate-300)', tint: 'rgb(148 163 184 / 0.15)', icon: icons.flat }
+    : positive
+      ? { color: 'var(--color-positive)', tint: 'rgb(34 197 94 / 0.15)', icon: icons.up }
+      : { color: 'var(--color-negative)', tint: 'rgb(244 63 94 / 0.15)', icon: icons.down };
 
   return (
     <div className="relative min-h-dvh overflow-hidden">
@@ -103,8 +118,9 @@ export default function App() {
           </h1>
 
           <p className="max-w-xl text-lg leading-relaxed text-slate-400">
-            Paste an English review or message. A TF-IDF and logistic regression model scores it as
-            positive or negative and shows how certain it is.
+            Paste a review or message in English or Indonesian. The language is detected, then a
+            TF-IDF and logistic regression model scores it as positive or negative and shows how
+            certain it is.
           </p>
         </header>
 
@@ -156,14 +172,14 @@ export default function App() {
 
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <span className="text-xs tracking-wide text-slate-500 uppercase">Try</span>
-            {SAMPLES.map((sample, i) => (
+            {SAMPLES.map((sample) => (
               <button
-                key={sample}
+                key={sample.label}
                 type="button"
-                onClick={() => setText(sample)}
+                onClick={() => setText(sample.text)}
                 className="cursor-pointer border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors duration-200 hover:border-accent hover:text-accent"
               >
-                Sample {i + 1}
+                {sample.label}
               </button>
             ))}
           </div>
@@ -187,28 +203,38 @@ export default function App() {
 
           {result && !loading && (
             <div className="border border-slate-700 bg-surface/60 p-6 sm:p-8">
-              <p className="text-xs font-semibold tracking-[0.18em] text-slate-400 uppercase">
-                Result
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs font-semibold tracking-[0.18em] text-slate-400 uppercase">
+                  Result
+                </p>
+
+                <span className="inline-flex items-center gap-1.5 border border-slate-700 px-2.5 py-1 text-xs text-slate-400">
+                  <Icon path={icons.globe} className="h-3.5 w-3.5" />
+                  {result.languageName}
+                  {result.detected && <span className="text-slate-500">· detected</span>}
+                </span>
+              </div>
 
               <div className="mt-3 flex items-center gap-3">
                 <span
                   className="flex h-12 w-12 shrink-0 items-center justify-center"
-                  style={{
-                    backgroundColor: positive ? 'rgb(34 197 94 / 0.15)' : 'rgb(244 63 94 / 0.15)',
-                    color: positive ? 'var(--color-positive)' : 'var(--color-negative)',
-                  }}
+                  style={{ backgroundColor: tone.tint, color: tone.color }}
                 >
-                  <Icon path={positive ? icons.up : icons.down} className="h-6 w-6" />
+                  <Icon path={tone.icon} className="h-6 w-6" />
                 </span>
 
-                <h2
-                  className="text-3xl font-bold capitalize sm:text-4xl"
-                  style={{ color: positive ? 'var(--color-positive)' : 'var(--color-negative)' }}
-                >
-                  {result.sentiment}
+                <h2 className="text-3xl font-bold capitalize sm:text-4xl" style={{ color: tone.color }}>
+                  {uncertain ? 'Uncertain' : result.sentiment}
                 </h2>
               </div>
+
+              {uncertain && (
+                <p className="mt-3 text-sm leading-relaxed text-slate-400">
+                  Leaning {result.sentiment} at {result.confidence}%, which is close to a coin flip.
+                  The models are trained on reviews, so casual conversation sits outside what they
+                  have seen.
+                </p>
+              )}
 
               <div className="mt-7">
                 <div className="flex items-baseline justify-between text-sm">
@@ -245,8 +271,9 @@ export default function App() {
         </section>
 
         <footer className="border-t border-slate-800 pt-6 text-sm text-slate-500">
-          Trained on 3,000 labelled sentences from Amazon, IMDb, and Yelp. Held-out accuracy ~85%,
-          so treat low-confidence calls as uncertain.
+          Two models: English on 3,000 Amazon, IMDb, and Yelp sentences (~85% held-out accuracy),
+          Indonesian on 11,000 (~91%). Both are review-trained, so treat low-confidence calls as
+          uncertain.
         </footer>
       </main>
     </div>

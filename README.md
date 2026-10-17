@@ -4,7 +4,7 @@
 
 **Read the tone before you reply.**
 
-Paste an English review or message. A TF-IDF and logistic regression model scores it as positive or negative and shows how certain it is.
+Paste a review or message in English or Indonesian. The language is detected, then a TF-IDF and logistic regression model scores it as positive or negative and shows how certain it is.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-3.1-000000?logo=flask&logoColor=white)
@@ -22,10 +22,11 @@ Paste an English review or message. A TF-IDF and logistic regression model score
 
 ## What it does
 
-- **Classifies English text** as positive or negative with a confidence percentage.
+- **Classifies English and Indonesian text** as positive or negative with a confidence percentage.
+- **Detects the language per request**, so an Indonesian sentence is never scored by the English model. An explicit `language` override is accepted and validated.
 - **Shows both class scores**, so a 51/49 split is visibly different from a 95/5 one.
-- **Handles negation.** "Not good at all" lands on negative, because the model keeps words like *not*, *no*, and *very* instead of stripping them as stop words.
-- **Fails loudly, not silently.** Empty input, oversized input, and an unreachable API each get their own message.
+- **Handles negation.** "Not good at all" lands on negative, because the model keeps words like *not*, *no*, *tidak*, and *banget* instead of stripping them as stop words.
+- **Fails loudly, not silently.** Empty input, oversized input, text in an untrained language, and an unreachable API each get their own message.
 
 ## Built with
 
@@ -33,7 +34,7 @@ Paste an English review or message. A TF-IDF and logistic regression model score
 | --- | --- |
 | [scikit-learn](https://scikit-learn.org) | TF-IDF features into logistic regression, wrapped in one `Pipeline`. |
 | [Flask](https://flask.palletsprojects.com) + [Flask-CORS](https://flask-cors.readthedocs.io) | Serves `/predict` and `/health` to the browser on localhost. |
-| [joblib](https://joblib.readthedocs.io) | Persists the fitted pipeline as a single `model.joblib`. |
+| [joblib](https://joblib.readthedocs.io) | Persists each fitted pipeline as `model_en.joblib` and `model_id.joblib`. |
 | [React](https://react.dev) 19 + [Vite](https://vite.dev) 8 | Interface and dev server with fast rebuilds. |
 | [Tailwind CSS](https://tailwindcss.com) 4 | CSS-first theming through `@theme`, no config file. |
 
@@ -44,7 +45,7 @@ Paste an English review or message. A TF-IDF and logistic regression model score
 - Python 3.10 or newer
 - Node.js 20 or newer
 
-### 1. Train the model
+### 1. Train the models
 
 ```bash
 cd backend
@@ -52,16 +53,28 @@ pip install -r requirements.txt
 python train.py
 ```
 
-`train.py` downloads the [UCI Sentiment Labelled Sentences](https://archive.ics.uci.edu/dataset/331/sentiment+labelled+sentences) dataset into `backend/data/`, trains the pipeline, prints a classification report, and writes `model.joblib`. It ends with a self-check that reloads the saved file and asserts two obvious cases, so a broken artifact fails here rather than at request time.
+`train.py` downloads both datasets into `backend/data/`, trains one pipeline per language, prints a classification report for each, and writes `model_en.joblib` and `model_id.joblib`. Each model ends with a self-check that reloads the saved file and asserts two obvious cases, so a broken artifact fails here rather than at request time.
+
+| Language | Dataset | Labelled texts |
+| --- | --- | --- |
+| English | [UCI Sentiment Labelled Sentences](https://archive.ics.uci.edu/dataset/331/sentiment+labelled+sentences) — Amazon, IMDb, Yelp | 3,000 |
+| Indonesian | [IndoNLU SmSA](https://github.com/IndoNLP/indonlu) — Prosa document sentiment | 10,981 |
+
+SmSA ships a third `neutral` label. It is dropped so both models stay binary and comparable; a neutral class needs its own UI treatment rather than a silent extra label.
 
 Expected output:
 
 ```
-3000 labelled sentences  |  positive=1500  negative=1500
-
+en
+3000 labelled texts  |  positive=1500  negative=1500
 Accuracy: 0.8467
-...
-saved model.joblib
+saved model_en.joblib
+self-check passed
+
+id
+10981 labelled texts  |  positive=7151  negative=3830
+Accuracy: 0.9135
+saved model_id.joblib
 self-check passed
 ```
 
@@ -94,7 +107,7 @@ Open `http://localhost:5173`.
 ### `GET /health`
 
 ```json
-{ "status": "ok", "model": "model.joblib" }
+{ "status": "ok", "languages": { "en": "English", "id": "Indonesian" } }
 ```
 
 ### `POST /predict`
@@ -109,15 +122,27 @@ curl -X POST http://127.0.0.1:5000/predict \
 {
   "sentiment": "positive",
   "confidence": 67.7,
-  "scores": { "positive": 67.7, "negative": 32.3 }
+  "scores": { "positive": 67.7, "negative": 32.3 },
+  "language": "en",
+  "languageName": "English",
+  "detected": true
 }
+```
+
+`detected` is `true` when the language came from detection, `false` when you supplied it. To skip detection, pass `language`:
+
+```bash
+curl -X POST http://127.0.0.1:5000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Pelayanan nya cepat dan ramah.", "language": "id"}'
 ```
 
 | Status | When |
 | --- | --- |
 | `200` | Prediction returned. |
-| `400` | `text` missing, not a string, or blank. |
+| `400` | `text` missing, not a string, or blank; or `language` is not `en` or `id`. |
 | `413` | `text` longer than 2,000 characters. |
+| `422` | Language could not be determined and none was supplied. |
 
 ## How the model works
 
@@ -130,19 +155,37 @@ text
  └─ FeatureUnion ──→ LogisticRegression (C=10) ──→ P(positive)
 ```
 
-Two deliberate choices drive the accuracy:
+The same pipeline is trained twice, once per language. Two deliberate choices drive the accuracy:
 
-- **No stop word list.** The default English list removes *not*, *no*, and *very*, which carry the sentiment in short reviews. Keeping them is worth roughly 8 points.
-- **Character n-grams alongside words.** `char_wb` 3-5 grams catch typos and stretched intensifiers such as "terrrible" and "sooo good" that word features miss. Worth roughly 1.5 points.
+- **No stop word list.** The default English list removes *not*, *no*, and *very*, which carry the sentiment in short reviews. The Indonesian equivalents *tidak*, *nggak*, and *banget* matter the same way. Keeping them is worth roughly 8 points.
+- **Character n-grams alongside words.** `char_wb` 3-5 grams catch typos and stretched intensifiers such as "terrrible" and "baguuus" that word features miss. Worth roughly 1.5 points.
 
-Held-out accuracy is **0.8467** on a stratified 20% split of 3,000 sentences. Treat low-confidence predictions as uncertain rather than wrong.
+Held-out accuracy on a stratified 20% split:
+
+| Model | Accuracy | Test size |
+| --- | --- | --- |
+| English | **0.8467** | 600 |
+| Indonesian | **0.9135** | 2,197 |
+
+The Indonesian model scores higher mostly because it has 3.6x the training data. Both are trained on reviews, so casual conversation sits outside what they have seen. Treat low-confidence predictions as uncertain rather than wrong.
+
+### Language detection
+
+`lang.py` counts function words from each language and picks the winner. The two languages share almost no function words, so a vote is accurate enough to route a request and adds no dependency.
+
+A tie, or text with no markers at all, returns `unknown` and the API answers `422`. Guessing there would return a confident-looking score on a sentence neither model was trained for.
+
+```bash
+python lang.py   # runs the self-check
+```
 
 ## Project structure
 
 ```
 .
 ├── backend/
-│   ├── train.py           Downloads data, trains, saves model.joblib
+│   ├── train.py           Downloads data, trains, saves both models
+│   ├── lang.py            Language detection, with a self-check
 │   ├── app.py             Flask API: /health and /predict
 │   ├── requirements.txt   Pinned Python dependencies
 │   └── data/              Dataset cache (gitignored)
@@ -156,7 +199,7 @@ Held-out accuracy is **0.8467** on a stratified 20% split of 3,000 sentences. Tr
 └── docs/assets/           README screenshot
 ```
 
-Neither `model.joblib` nor `backend/data/` is committed. Both are reproducible from `train.py`, and binary artifacts in git make diffs useless.
+Neither the `.joblib` models nor `backend/data/` is committed. Both are reproducible from `train.py`, and binary artifacts in git make diffs useless.
 
 ## Notes on security
 
@@ -166,14 +209,16 @@ CORS is limited to `http://localhost:5173` and `http://127.0.0.1:5173` for local
 
 | Problem | Fix |
 | --- | --- |
-| `model.joblib not found` | Run `python train.py` before `python app.py`. |
+| `Missing model_en.joblib, model_id.joblib` | Run `python train.py` before `python app.py`. |
+| `Could not tell which language this is` | The text has no English or Indonesian function words. Pass `"language": "en"` or `"id"` explicitly. |
 | `Cannot reach the API` in the UI | The Flask server is not running, or the frontend is not on port 5173. |
 | CORS error in the browser console | Serve the frontend on 5173, or add your origin to the `CORS(...)` list in `app.py`. |
 | Dataset download fails | Check your connection; `train.py` reuses `backend/data/` if the files are already there. |
 
 ## Future improvements
 
-- Neutral class, which needs a three-way labelled dataset
+- Neutral class. SmSA already labels it; the English side needs a three-way dataset, and the UI needs its own treatment for it.
+- More languages, which the per-language model registry in `app.py` already allows for
 - Model comparison against linear SVM and naive Bayes
 - Per-word contribution highlighting so a prediction can be inspected
 - Deployment: Vercel for the frontend, Render for the API
