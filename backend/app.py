@@ -6,6 +6,7 @@ sentence is never scored by the English model.
 Run train.py first, then:  python app.py
 """
 
+import os
 import pathlib
 
 import joblib
@@ -17,14 +18,20 @@ from lang import detect
 HERE = pathlib.Path(__file__).parent
 MAX_CHARS = 2000
 
+LOCAL_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
 LANGUAGES = {
     "en": {"name": "English", "path": HERE / "model_en.joblib"},
     "id": {"name": "Indonesian", "path": HERE / "model_id.joblib"},
 }
 
 app = Flask(__name__)
-# Local dev only. Narrow this to your real origin before deploying.
-CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"])
+
+# Deployed origins come from ALLOWED_ORIGINS, comma separated. Localhost stays
+# allowed so `npm run dev` keeps working, but nothing else is: a wildcard here
+# would let any site drive this API from a visitor's browser.
+extra = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+CORS(app, origins=LOCAL_ORIGINS + extra)
 
 missing = [str(cfg["path"].name) for cfg in LANGUAGES.values() if not cfg["path"].exists()]
 if missing:
@@ -82,7 +89,11 @@ def predict():
 
 
 if __name__ == "__main__":
+    # Hugging Face Spaces routes to 7860 and needs 0.0.0.0 to be reachable;
+    # locally both default back to the old loopback behaviour.
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", "5000"))
     loaded = ", ".join(f"{code} ({cfg['name']})" for code, cfg in LANGUAGES.items())
-    print("Sentiment Analysis API is running on http://127.0.0.1:5000")
+    print(f"Sentiment Analysis API is running on http://{host}:{port}")
     print(f"Models loaded: {loaded}")
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    app.run(host=host, port=port, debug=False)

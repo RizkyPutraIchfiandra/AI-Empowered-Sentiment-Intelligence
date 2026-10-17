@@ -191,19 +191,65 @@ python lang.py   # runs the self-check
 │   └── data/              Dataset cache (gitignored)
 ├── frontend/
 │   ├── src/
-│   │   ├── App.jsx        Form, result card, error states
+│   │   ├── App.jsx        Form, the reactive face, error states
 │   │   ├── main.jsx       React entry point
 │   │   └── index.css      Tailwind theme tokens
+│   ├── .env.example       VITE_API_URL for deployed builds
 │   ├── index.html
 │   └── vite.config.js
+├── Dockerfile             Builds the API image for Hugging Face Spaces
+├── netlify.toml           Frontend build and SPA fallback
 └── docs/assets/           README screenshot
 ```
 
 Neither the `.joblib` models nor `backend/data/` is committed. Both are reproducible from `train.py`, and binary artifacts in git make diffs useless.
 
+## Deploying
+
+The two halves go to two hosts. Netlify serves static files only, so the Flask API needs somewhere that runs Python. Hugging Face Spaces is used here because it does not sleep when idle.
+
+### 1. API on Hugging Face Spaces
+
+Create a Space with the **Docker** SDK, then push this repository to it. The `Dockerfile` at the root installs the dependencies, runs `train.py` at build time, and serves `app:app` through gunicorn on port 7860.
+
+```bash
+git remote add space https://huggingface.co/spaces/<user>/<space>
+git push space main
+```
+
+The models are trained during the build rather than committed, so the first build takes a few minutes. Once it finishes, confirm the API:
+
+```bash
+curl https://<user>-<space>.hf.space/health
+```
+
+### 2. Frontend on Netlify
+
+Connect the repository. `netlify.toml` already sets the base directory, build command, publish directory, and the SPA fallback, so no manual configuration is needed.
+
+Add one environment variable before the first deploy:
+
+| Key | Value |
+| --- | --- |
+| `VITE_API_URL` | `https://<user>-<space>.hf.space` |
+
+Vite inlines this at build time, so changing it later needs a redeploy, not just a restart.
+
+### 3. Allow the Netlify origin
+
+The API rejects unknown origins, so the deployed site cannot call it until you say so. In the Space settings add:
+
+| Key | Value |
+| --- | --- |
+| `ALLOWED_ORIGINS` | `https://<your-site>.netlify.app` |
+
+Several origins can be listed comma separated. Localhost stays allowed either way, so local development keeps working.
+
 ## Notes on security
 
-CORS is limited to `http://localhost:5173` and `http://127.0.0.1:5173` for local development. Narrow this to your real origin in `app.py` before deploying anywhere public. The API has no authentication or rate limiting, so do not expose it to the internet as-is.
+CORS is an allowlist, never a wildcard: `http://localhost:5173` and `http://127.0.0.1:5173` plus whatever `ALLOWED_ORIGINS` contains. A wildcard would let any site drive this API from a visitor's browser.
+
+The API has no authentication or rate limiting. It is a public endpoint running a small CPU model, so the realistic exposure is someone burning your Space quota rather than data loss. Put it behind a proxy with rate limiting if that matters to you.
 
 ## Troubleshooting
 
