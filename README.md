@@ -197,7 +197,7 @@ python lang.py   # runs the self-check
 │   ├── .env.example       VITE_API_URL for deployed builds
 │   ├── index.html
 │   └── vite.config.js
-├── render.yaml            API service: build, start, health check
+├── Dockerfile             Builds the API image for Hugging Face Spaces
 ├── netlify.toml           Frontend build and SPA fallback
 └── docs/assets/           README screenshot
 ```
@@ -206,19 +206,22 @@ Neither the `.joblib` models nor `backend/data/` is committed. Both are reproduc
 
 ## Deploying
 
-The two halves go to two hosts. Netlify serves static files only, so the Flask API needs somewhere that runs Python. Render is used here because `render.yaml` describes the whole service, so there is nothing to click through.
+The two halves go to two hosts. Netlify serves static files only, so the Flask API needs somewhere that runs Python. Hugging Face Spaces is used here because it does not sleep when idle.
 
-### 1. API on Render
+### 1. API on Hugging Face Spaces
 
-Create a **Blueprint** from this repository. `render.yaml` sets the build command, the start command, and the health check path, so the only manual step is the environment variable in step 3.
+Create a Space with the **Docker** SDK, then push this repository to it. The `Dockerfile` at the root installs the dependencies, runs `train.py` at build time, and serves `app:app` through gunicorn on port 7860.
+
+```bash
+git remote add space https://huggingface.co/spaces/<user>/<space>
+git push space main
+```
 
 The models are trained during the build rather than committed, so the first build takes a few minutes. Once it finishes, confirm the API:
 
 ```bash
-curl https://<your-service>.onrender.com/health
+curl https://<user>-<space>.hf.space/health
 ```
-
-The free tier sleeps after 15 minutes of inactivity, so the first request after an idle spell takes roughly 50 seconds while the service wakes. It also caps memory at 512 MB, which is why `render.yaml` runs a single worker: the process plus scikit-learn and both models sits near 177 MB, and a second worker would double that.
 
 ### 2. Frontend on Netlify
 
@@ -228,13 +231,13 @@ Add one environment variable before the first deploy:
 
 | Key | Value |
 | --- | --- |
-| `VITE_API_URL` | `https://<your-service>.onrender.com` |
+| `VITE_API_URL` | `https://<user>-<space>.hf.space` |
 
 Vite inlines this at build time, so changing it later needs a redeploy, not just a restart.
 
 ### 3. Allow the Netlify origin
 
-The API rejects unknown origins, so the deployed site cannot call it until you say so. In the Render dashboard add:
+The API rejects unknown origins, so the deployed site cannot call it until you say so. In the Space settings add:
 
 | Key | Value |
 | --- | --- |
